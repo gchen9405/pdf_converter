@@ -1,0 +1,18 @@
+# Build scratch / outputs — never commit these (they're multi-GB)
+.build/
+dist/
+build/
+logs/
+*.spec.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.venv-build/
+
+# OS
+.DS_Store
+Thumbs.db

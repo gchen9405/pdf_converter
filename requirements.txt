@@ -1,0 +1,18 @@
+# Pinned, verified-compatible dependency set for the Docling PDF -> TXT build.
+#
+# NOTE: torch / torchvision are installed SEPARATELY by build.py from the
+# CPU-only PyTorch index, so pip does not pull multi-GB CUDA wheels from PyPI:
+#
+#     pip install torch==2.7.0 torchvision==0.22.0 \
+#         --index-url https://download.pytorch.org/whl/cpu
+#
+# Do NOT add torch/torchvision here.
+#
+# `docling` pulls `docling-slim[standard]` which provides the full local PDF
+# pipeline (docling-ibm-models, docling-parse, huggingface-hub, numpy, scipy,
+# pillow, ...). For OCR support build.py additionally installs
+# `docling[easyocr]` (easyocr + scikit-image).
+
+docling==2.107.0
+pyinstaller==6.21.0
+pyinstaller-hooks-contrib==2026.6

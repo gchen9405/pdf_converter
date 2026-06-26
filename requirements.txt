@@ -16,3 +16,8 @@
 docling==2.107.0
 pyinstaller==6.21.0
 pyinstaller-hooks-contrib==2026.6
+
+# Lets model downloads trust the OS trust store (corporate TLS-inspection CAs).
+# Harmless on non-corporate networks. Requires Python >= 3.10.
+truststore>=0.10
+

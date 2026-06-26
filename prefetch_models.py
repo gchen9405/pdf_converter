@@ -12,6 +12,19 @@ scanned/image-only PDFs can be converted fully offline.
 import argparse
 from pathlib import Path
 
+# Make HTTPS verification use the OS (Windows/macOS) trust store instead of the
+# bundled certifi list. On corporate networks that do TLS inspection, the proxy
+# re-signs traffic with a corporate root CA that lives in the OS trust store
+# (the same one your browser and pip already trust) but NOT in certifi -- so
+# without this, model downloads from the HuggingFace Hub fail with
+# "SSL: CERTIFICATE_VERIFY_FAILED". No-op if truststore isn't installed.
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Pre-download Docling model weights.")

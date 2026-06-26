@@ -19,7 +19,7 @@ Typical use (with the shipped executable):
 
 CLI:
     pdf2txt [-i INPUT] [-o OUTPUT] [--recursive] [--ocr] [--plain]
-            [--skip-existing] [files-or-folders ...]
+            [--parser {pypdfium2,docling-parse}] [--skip-existing] [files ...]
 """
 import os
 import sys
@@ -75,11 +75,17 @@ def _find_pdfs(folder: Path, recursive: bool):
     return sorted(p for p in folder.glob(pattern) if p.is_file())
 
 
-def _build_converter(use_ocr: bool):
+def _build_converter(use_ocr: bool, parser: str = "pypdfium2"):
     """Construct a Docling DocumentConverter wired to the local model weights."""
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.datamodel.settings import settings
     from docling.document_converter import DocumentConverter, PdfFormatOption
+
+    # Process one page at a time: caps peak memory (helps on modest RAM) and is
+    # cheap insurance against the docling-parse memory growth that can throw
+    # std::bad_alloc on large PDFs (docling issues #3671 / #3345).
+    settings.perf.page_batch_size = 1
 
     artifacts = _MODELS_DIR if _MODELS_DIR.is_dir() else None
 
@@ -94,9 +100,17 @@ def _build_converter(use_ocr: bool):
             easy.model_storage_directory = str(artifacts / "EasyOcr")
         opts.ocr_options = easy
 
-    return DocumentConverter(
-        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
-    )
+    if parser == "docling-parse":
+        # Higher-fidelity text cells, but its C++ parser can crash (std::bad_alloc)
+        # on large/complex PDFs. Use only if pypdfium2 output is insufficient.
+        fmt = PdfFormatOption(pipeline_options=opts)
+    else:
+        # Default: pypdfium2 backend -- robust on heavy PDFs, no std::bad_alloc,
+        # and the layout/table ML models (headings, tables) run regardless.
+        from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+        fmt = PdfFormatOption(pipeline_options=opts, backend=PyPdfiumDocumentBackend)
+
+    return DocumentConverter(format_options={InputFormat.PDF: fmt})
 
 
 def _gather_inputs(args):
@@ -150,6 +164,11 @@ def main(argv=None) -> int:
     p.add_argument("--plain", action="store_true",
                    help="Write plain text instead of the default Docling Markdown "
                         "(output always keeps the .txt extension either way).")
+    p.add_argument("--parser", choices=["pypdfium2", "docling-parse"],
+                   default="pypdfium2",
+                   help="PDF parser backend. 'pypdfium2' (default) is robust on "
+                        "large/complex PDFs. 'docling-parse' gives slightly richer "
+                        "text cells but can crash (std::bad_alloc) on heavy PDFs.")
     p.add_argument("--skip-existing", action="store_true",
                    help="Skip PDFs whose output file already exists.")
     p.add_argument("--verbose", action="store_true",
@@ -179,12 +198,13 @@ def main(argv=None) -> int:
     print("  PDFs to convert : %d" % len(pdfs))
     print("  Output folder   : %s" % args.output.resolve())
     print("  OCR             : %s" % ("on" if use_ocr else "off"))
+    print("  Parser          : %s" % args.parser)
     print("  Content         : %s (written to .txt files)"
           % ("plain text" if args.plain else "Docling Markdown"))
     print("Loading Docling models (the first run can take ~10-30s) ...", flush=True)
 
     t0 = time.time()
-    converter = _build_converter(use_ocr)
+    converter = _build_converter(use_ocr, args.parser)
     print("Models loaded in %.1fs.\n" % (time.time() - t0), flush=True)
 
     ok = skipped = 0

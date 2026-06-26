@@ -3,6 +3,8 @@
 dist/
 build/
 logs/
+models/
+*.zip
 *.spec.bak
 
 # Python
